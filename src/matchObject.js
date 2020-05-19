@@ -44,7 +44,7 @@ const objectAndArgsDestructureMatches = (reflectedArgs, subjectToMatch) =>
     getFlattenedKeys(subjectToMatch)
   )
 
-exports = {
+export  {
   getFlattenedKeysFromArgs,
   objectAndArgsDestructureMatches
 }

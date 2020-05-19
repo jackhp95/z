@@ -44,4 +44,4 @@ const matches = (subjectToMatch) => function (...functions) {
   return resolveMatchFunctions(subjectToMatch, functions, this)
 }
 
-exports = { matches }
+export  { matches }

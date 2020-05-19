@@ -2,7 +2,7 @@ import deepEqual from 'deep-equal'
 import objectEquals from './objectEquals'
 import option from './option'
 
-exports = (match, subjectToMatch) => {
+export  (match, subjectToMatch) => {
   const hasMatchValue = match.args[0].length >= 2
   if (!hasMatchValue) {
     return option.Some(subjectToMatch)

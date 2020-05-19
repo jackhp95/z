@@ -24,7 +24,7 @@ const containsAll = (xs, ys) =>
 const hasDestructuredObjectArguments = xs =>
   xs.some(x => /({|})/.test(x) && !/function/.test(x))
 
-exports = {
+export  {
   hasDestructuredObjectArguments,
   checkArray,
   containsAll,
