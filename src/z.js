@@ -1,8 +1,8 @@
-const getMatchDetails = require('./getMatchDetails')
-const match = require('./match')
-const matchArray = require('./matchArray')
-const { hasDestructuredObjectArguments } = require('./utils')
-const { objectAndArgsDestructureMatches } = require('./matchObject')
+import getMatchDetails from './getMatchDetails'
+import match from './match'
+import matchArray from './matchArray'
+import { hasDestructuredObjectArguments } from './utils'
+import { objectAndArgsDestructureMatches } from './matchObject'
 
 const resolveMatchFunctions = (subjectToMatch, functions, scope) => {
   for (let i = 0; i < functions.length; i++) {
@@ -44,4 +44,4 @@ const matches = (subjectToMatch) => function (...functions) {
   return resolveMatchFunctions(subjectToMatch, functions, this)
 }
 
-module.exports = { matches }
+exports = { matches }

@@ -1,5 +1,5 @@
-const flatten = require('flat')
-const { checkArray, compose, containsAll, isChar } = require('./utils')
+import flatten from 'flat'
+import { checkArray, compose, containsAll, isChar } from './utils'
 
 // This is just an approach for deriving an actual js object
 // from the punned syntax of object destructuring in the
@@ -44,7 +44,7 @@ const objectAndArgsDestructureMatches = (reflectedArgs, subjectToMatch) =>
     getFlattenedKeys(subjectToMatch)
   )
 
-module.exports = {
+exports = {
   getFlattenedKeysFromArgs,
   objectAndArgsDestructureMatches
 }

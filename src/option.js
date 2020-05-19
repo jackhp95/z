@@ -1,4 +1,4 @@
-module.exports = {
+exports = {
   Some: (value) => ({ value, hasValue: true }),
   None: {}
 }

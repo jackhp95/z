@@ -1,8 +1,8 @@
-const deepEqual = require('deep-equal')
-const objectEquals = require('./objectEquals')
-const option = require('./option')
+import deepEqual from 'deep-equal'
+import objectEquals from './objectEquals'
+import option from './option'
 
-module.exports = (match, subjectToMatch) => {
+exports = (match, subjectToMatch) => {
   const hasMatchValue = match.args[0].length >= 2
   if (!hasMatchValue) {
     return option.Some(subjectToMatch)

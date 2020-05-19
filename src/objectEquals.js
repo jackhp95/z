@@ -1,4 +1,4 @@
-const deepEqual = require('deep-equal')
+import deepEqual from 'deep-equal'
 
 function getPropByString (obj, propString) {
   if (!propString) {
@@ -23,7 +23,7 @@ function getPropByString (obj, propString) {
   return obj[props[i]]
 }
 
-module.exports = (a, b) => {
+exports = (a, b) => {
   const objectEquals = (objectA, nestedKeys = []) => {
     if (objectA.constructor === Object) {
       const keys = Object.keys(objectA)
