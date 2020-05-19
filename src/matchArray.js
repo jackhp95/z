@@ -1,6 +1,6 @@
-const deepEqual = require('deep-equal')
-const option = require('./option')
-const match = require('./match')
+import deepEqual from 'deep-equal'
+import option from './option'
+import match from './match'
 
 module.exports = (currentMatch, subjectToMatch) => {
   const matchArgs = currentMatch.args.map(

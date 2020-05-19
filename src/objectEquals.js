@@ -1,4 +1,4 @@
-const deepEqual = require('deep-equal')
+import deepEqual from 'deep-equal'
 
 function getPropByString (obj, propString) {
   if (!propString) {
