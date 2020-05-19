@@ -38,13 +38,13 @@ const getFlattenedKeysFromArgs = compose(
   checkArray
 )
 
-const objectAndArgsDestructureMatches = (reflectedArgs, subjectToMatch) =>
+export const objectAndArgsDestructureMatches = (reflectedArgs, subjectToMatch) =>
   containsAll(
     getFlattenedKeysFromArgs(reflectedArgs),
     getFlattenedKeys(subjectToMatch)
   )
 
-export  {
+export default {
   getFlattenedKeysFromArgs,
   objectAndArgsDestructureMatches
 }

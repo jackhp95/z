@@ -1,6 +1,6 @@
 import functionReflector from 'js-function-reflector'
 
-export  function (matchFunction) {
+export default function (matchFunction) {
   const reflectedFunction = functionReflector.call(this, matchFunction)
 
   return {

@@ -23,7 +23,7 @@ function getPropByString (obj, propString) {
   return obj[props[i]]
 }
 
-export  (a, b) => {
+export default (a, b) => {
   const objectEquals = (objectA, nestedKeys = []) => {
     if (objectA.constructor === Object) {
       const keys = Object.keys(objectA)
