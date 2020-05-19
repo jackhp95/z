@@ -1,6 +1,4 @@
-import functionReflector from 'js-function-reflector';
-import deepEqual from 'deep-equal';
-import flatten from 'flat';
+const functionReflector = require('js-function-reflector');
 
 function getMatchDetails (matchFunction) {
   const reflectedFunction = functionReflector.call(this, matchFunction);
@@ -10,6 +8,8 @@ function getMatchDetails (matchFunction) {
     func: matchFunction
   }
 }
+
+const deepEqual = require('deep-equal');
 
 function getPropByString (obj, propString) {
   if (!propString) {
@@ -81,6 +81,8 @@ var option = {
   None: {}
 };
 
+const deepEqual$1 = require('deep-equal');
+
 var match = (match, subjectToMatch) => {
   const hasMatchValue = match.args[0].length >= 2;
   if (!hasMatchValue) {
@@ -126,7 +128,7 @@ var match = (match, subjectToMatch) => {
     subjectToMatch instanceof Array &&
     matchValue instanceof Array
   ) {
-    if (deepEqual(subjectToMatch, matchValue)) {
+    if (deepEqual$1(subjectToMatch, matchValue)) {
       return option.Some(subjectToMatch)
     }
   }
@@ -146,6 +148,8 @@ var match = (match, subjectToMatch) => {
   return option.None
 };
 
+const deepEqual$2 = require('deep-equal');
+
 var matchArray = (currentMatch, subjectToMatch) => {
   const matchArgs = currentMatch.args.map(
     (x, index) =>
@@ -154,14 +158,14 @@ var matchArray = (currentMatch, subjectToMatch) => {
 
   if (subjectToMatch.length < matchArgs.length) {
     const matchOnSubArg = (arg, toMatch) => 'value' in arg
-      ? deepEqual(arg.value, toMatch)
+      ? deepEqual$2(arg.value, toMatch)
       : true;
 
     const matchAllSubArgs = matchArgs
       .slice(0, matchArgs.length - 1)
       .every((arg, index) => matchOnSubArg(arg, subjectToMatch[index]));
 
-    if (matchAllSubArgs && deepEqual(matchArgs[matchArgs.length - 1].value, [])) {
+    if (matchAllSubArgs && deepEqual$2(matchArgs[matchArgs.length - 1].value, [])) {
       return option.Some(subjectToMatch[0])
     }
 
@@ -225,28 +229,29 @@ const containsAll = (xs, ys) =>
 const hasDestructuredObjectArguments = xs =>
   xs.some(x => /({|})/.test(x) && !/function/.test(x));
 
+const flatten = require('flat');
+
 // This is just an approach for deriving an actual js object
 // from the punned syntax of object destructuring in the
 // function argument reflection, that object can then
 // be used to check the keys of the subjectToMatch
-const buildSpecFromReflectedArgs = str =>
-  [...str].reduce((res, curr, i) => {
-    switch (true) {
-      // add a dummy value when a key without a value is found
-      case /(,|})/.test(curr) && isChar(str.charAt(i - 1)):
-        return res.concat('":1').concat(curr)
+const buildSpecFromReflectedArgs = str => [...str].reduce((res, curr, i) => {
+  switch (true) {
+    // add a dummy value when a key without a value is found
+    case /(,|})/.test(curr) && isChar(str.charAt(i - 1)):
+      return res.concat('":1').concat(curr)
 
       // add a opening quote to keynames that are missing them
-      case isChar(curr) && !isChar(str.charAt(i - 1)):
+    case isChar(curr) && !isChar(str.charAt(i - 1)):
       // add a closing quote to keynames that are missing them
       /* falls through */
-      case curr === ':' && str.charAt(i - 1) !== '"':
-        return res.concat('"').concat(curr)
+    case curr === ':' && str.charAt(i - 1) !== '"':
+      return res.concat('"').concat(curr)
 
-      default:
-        return res.concat(curr)
-    }
-  }, '');
+    default:
+      return res.concat(curr)
+  }
+}, '');
 
 // derive a flattened list of keys|paths from an object
 const getFlattenedKeys = compose(Object.keys, flatten);

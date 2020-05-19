@@ -1,28 +1,32 @@
-import flatten from 'flat'
-import { checkArray, compose, containsAll, isChar } from './utils'
+const flatten = require('flat')
+import {
+  checkArray,
+  compose,
+  containsAll,
+  isChar
+} from './utils'
 
 // This is just an approach for deriving an actual js object
 // from the punned syntax of object destructuring in the
 // function argument reflection, that object can then
 // be used to check the keys of the subjectToMatch
-const buildSpecFromReflectedArgs = str =>
-  [...str].reduce((res, curr, i) => {
-    switch (true) {
-      // add a dummy value when a key without a value is found
-      case /(,|})/.test(curr) && isChar(str.charAt(i - 1)):
-        return res.concat('":1').concat(curr)
+const buildSpecFromReflectedArgs = str => [...str].reduce((res, curr, i) => {
+  switch (true) {
+    // add a dummy value when a key without a value is found
+    case /(,|})/.test(curr) && isChar(str.charAt(i - 1)):
+      return res.concat('":1').concat(curr)
 
       // add a opening quote to keynames that are missing them
-      case isChar(curr) && !isChar(str.charAt(i - 1)):
+    case isChar(curr) && !isChar(str.charAt(i - 1)):
       // add a closing quote to keynames that are missing them
       /* falls through */
-      case curr === ':' && str.charAt(i - 1) !== '"':
-        return res.concat('"').concat(curr)
+    case curr === ':' && str.charAt(i - 1) !== '"':
+      return res.concat('"').concat(curr)
 
-      default:
-        return res.concat(curr)
-    }
-  }, '')
+    default:
+      return res.concat(curr)
+  }
+}, '')
 
 // derive a flattened list of keys|paths from an object
 const getFlattenedKeys = compose(Object.keys, flatten)
