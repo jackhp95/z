@@ -1,4 +1,4 @@
-const deepEqual = require('deep-equal')
+import deepEqual from 'deep-equal'
 import option from './option'
 import match from './match'
 

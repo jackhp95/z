@@ -1,7 +1,237 @@
-const functionReflector = require('js-function-reflector');
+var whitespaceRegex = /[\s\n\t]+/mg;
+var functionHeadRegex = /^function\s*(?:(\w+)\s*)?\(\s*([^\)]*)\)/m;
+
+var header_parser = function(stringFunction, regex) {
+  var matches = functionHeadRegex.exec(stringFunction);
+  if (matches.length < 3) {
+    throw new Error('Invalid function');
+  }
+  var args = matches[2] && matches[2].replace(whitespaceRegex, '').split(',') || [];
+  var name = matches[1] || 'anonymous';
+
+  return {
+    name: name,
+    args: args
+  };
+};
+
+var defaultParamsRegex = /var (\w+) = arguments.length > (\d+) && arguments\[(?:\2)\] !== undefined \? arguments\[(?:\2)\] : (.+);$/gm;
+var paramRegex = /var (\w+) = arguments\[(\d+)\]/gm;
+var spreadRegex = /(\w+)\[_key - (\d+)\] = arguments\[_key\];/gm;
+
+var babelPresetEs2015Reflector = function(fn) {
+  var src = fn.toString();
+  var header = header_parser(src);
+  var args = header.args;
+
+  var param;
+  while ( (param = defaultParamsRegex.exec(src)) !== null ) {
+    var name = param[1];
+    var index = param[2];
+    var value = param[3];
+    try {
+      value = eval('(' + value + ')');
+    } catch(e) {
+      value = 'var(' + value + ')';
+    }
+    args.splice(index, 0, [name, value]);
+  }
+  while ( (param = paramRegex.exec(src)) !== null ) {
+    var name = param[1];
+    var index = param[2];
+    args.splice(index, 0, name);
+  }
+  while ( (param = spreadRegex.exec(src)) !== null ) {
+    args.splice(param[2], 0, '...' + param[1]);
+  }
+
+  var body = src.slice(src.indexOf('{') + 1, -1).trim();
+
+  return {
+    name: header.name,
+    args: args,
+    body: body
+  };
+};
+
+var Parser = function() {
+  this.state = 'var'; // var or val
+  this.counter = 0;
+  this.lastStrOpening = null;
+
+  this.whitespaces = [' ', '\t', '\n'];
+  this.opening = ['[', '{'];
+  this.closing = [']', '}'];
+  this.strOpening = ["'", '"', '`'];
+
+  this.parsed = [];
+  this.buffer = '';
+};
+
+Parser.prototype.parse = function(str, scope) {
+  Object.assign(this, scope);
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charAt(i);
+    if (this.state === 'var') {
+      if (this.contains(this.whitespaces, ch)) continue
+      if (ch === '=') {
+        this.pushBuffer();
+        this.state = 'val';
+        continue
+      }
+      if (ch === ',') {
+        this.pushBuffer();
+        continue
+      }
+      this.buffer += ch;
+      if (i === str.length - 1) {
+        this.parsed.push(this.buffer);
+        this.buffer = '';
+      }
+    } else if (this.state === 'val') {
+      // if currently parsing a string add anything to the buffer
+      if (this.lastStrOpening !== null) {
+        if (this.lastStrOpening === ch) {
+          this.lastStrOpening = null;
+        }
+
+        this.buffer += ch;
+
+        var isLastElement = i === str.length - 1;
+        if(isLastElement) {
+          this.pushBuffer();
+        }
+
+        continue
+      }
+
+      if (this.counter === 0 && this.contains(this.whitespaces, ch)) continue
+      if (this.contains(this.opening, ch)) {
+        this.counter++;
+      } else if (this.contains(this.closing, ch)) {
+        this.counter--;
+      } else if (this.contains(this.strOpening, ch)) {
+        this.lastStrOpening = ch;
+      }
+      if (this.counter === 0 && ch === ',') {
+        this.pushBuffer();
+        this.state = 'var';
+        continue
+      }
+      this.buffer += ch;
+      if (i === str.length - 1) {
+        this.pushBuffer();
+        this.state = 'var';
+        continue
+      }
+    }
+  }
+  return this.parsed
+};
+
+Parser.prototype.contains = function(arr, ch) {
+  for(var i in arr) {
+    if (ch === arr[i]) {
+      return true
+    }
+  }
+  return false
+};
+
+Parser.prototype.pushBuffer = function() {
+  if (this.state === 'var') {
+    this.parsed.push(this.buffer);
+  } else if (this.state === 'val') {
+    var variable = this.parsed.pop();
+
+    var defaultParam;
+
+    try{
+      defaultParam = eval('(' + this.buffer + ')');
+    } catch(e) {
+      defaultParam = eval('(this.' + this.buffer + ')');
+    }
+
+    this.parsed.push([variable, defaultParam]);
+  }
+  this.buffer = '';
+};
+
+var argument_parser = Parser;
+
+var header_parser$1 = function(stringFunction, regex) {
+  var matches = regex.exec(stringFunction);
+  if (matches.length < 3) {
+    throw new Error('Invalid function');
+  }
+  var parser = new argument_parser();
+  var args = parser.parse(matches[2], this);
+
+  var name = matches[1] || 'anonymous';
+
+  return {
+    name: name,
+    args: args
+  };
+};
+
+var compilers = function(compiler) {
+  switch (compiler) {
+    case 'babel-preset-es2015':
+      return babelPresetEs2015Reflector;
+    default:
+      throw new Error('Compiler not found');
+  }
+};
+
+var functionHeadRegex$1 = /^(?:function\s*)?(?:(\w+)\s*)?(?:\(?)\s*([^\)]*)(?:\)?)/;
+var oneArgumentFunctionRegex = /^\w+/;
+
+function reflector(fn) {
+  var src;
+  var body = src = fn.toString();
+  var arrowIndex = src.lastIndexOf('=>');
+  var arrowFunction = arrowIndex > -1;
+  var inlineFunction = false;
+  var oneArgumentFunction = false;
+
+  if (arrowFunction) {
+    body = src.substr(arrowIndex + 2).trim();
+    if (body[0] != '{') {
+      inlineFunction = true;
+    }
+    if (src.substr(0,1) != '(') {
+      oneArgumentFunction = true;
+    }
+  }
+
+  if (oneArgumentFunction) {
+    var matches = oneArgumentFunctionRegex.exec(src);
+    if (matches.length < 1) {
+      throw new Error('Invalid function');
+    }
+    var args = [matches[0]];
+    var name = 'anonymous';
+  } else {
+    var header = header_parser$1.call(this, src, functionHeadRegex$1);
+    var name = header.name;
+    var args = header.args;
+  }
+
+  body = (inlineFunction) ? 'return ' + body : body.slice(body.indexOf('{') + 1, -1).trim();
+
+  return {
+    name: name,
+    args: args,
+    body: body
+  };
+}
+reflector.compiler = compilers;
+
+var jsFunctionReflector = reflector;
 
 function getMatchDetails (matchFunction) {
-  const reflectedFunction = functionReflector.call(this, matchFunction);
+  const reflectedFunction = jsFunctionReflector.call(this, matchFunction);
 
   return {
     args: reflectedFunction.args,
@@ -9,7 +239,142 @@ function getMatchDetails (matchFunction) {
   }
 }
 
-const deepEqual = require('deep-equal');
+function createCommonjsModule(fn, module) {
+	return module = { exports: {} }, fn(module, module.exports), module.exports;
+}
+
+var keys = createCommonjsModule(function (module, exports) {
+exports = module.exports = typeof Object.keys === 'function'
+  ? Object.keys : shim;
+
+exports.shim = shim;
+function shim (obj) {
+  var keys = [];
+  for (var key in obj) keys.push(key);
+  return keys;
+}
+});
+var keys_1 = keys.shim;
+
+var is_arguments = createCommonjsModule(function (module, exports) {
+var supportsArgumentsClass = (function(){
+  return Object.prototype.toString.call(arguments)
+})() == '[object Arguments]';
+
+exports = module.exports = supportsArgumentsClass ? supported : unsupported;
+
+exports.supported = supported;
+function supported(object) {
+  return Object.prototype.toString.call(object) == '[object Arguments]';
+}
+exports.unsupported = unsupported;
+function unsupported(object){
+  return object &&
+    typeof object == 'object' &&
+    typeof object.length == 'number' &&
+    Object.prototype.hasOwnProperty.call(object, 'callee') &&
+    !Object.prototype.propertyIsEnumerable.call(object, 'callee') ||
+    false;
+}});
+var is_arguments_1 = is_arguments.supported;
+var is_arguments_2 = is_arguments.unsupported;
+
+var deepEqual_1 = createCommonjsModule(function (module) {
+var pSlice = Array.prototype.slice;
+
+
+
+var deepEqual = module.exports = function (actual, expected, opts) {
+  if (!opts) opts = {};
+  // 7.1. All identical values are equivalent, as determined by ===.
+  if (actual === expected) {
+    return true;
+
+  } else if (actual instanceof Date && expected instanceof Date) {
+    return actual.getTime() === expected.getTime();
+
+  // 7.3. Other pairs that do not both pass typeof value == 'object',
+  // equivalence is determined by ==.
+  } else if (!actual || !expected || typeof actual != 'object' && typeof expected != 'object') {
+    return opts.strict ? actual === expected : actual == expected;
+
+  // 7.4. For all other Object pairs, including Array objects, equivalence is
+  // determined by having the same number of owned properties (as verified
+  // with Object.prototype.hasOwnProperty.call), the same set of keys
+  // (although not necessarily the same order), equivalent values for every
+  // corresponding key, and an identical 'prototype' property. Note: this
+  // accounts for both named and indexed properties on Arrays.
+  } else {
+    return objEquiv(actual, expected, opts);
+  }
+};
+
+function isUndefinedOrNull(value) {
+  return value === null || value === undefined;
+}
+
+function isBuffer (x) {
+  if (!x || typeof x !== 'object' || typeof x.length !== 'number') return false;
+  if (typeof x.copy !== 'function' || typeof x.slice !== 'function') {
+    return false;
+  }
+  if (x.length > 0 && typeof x[0] !== 'number') return false;
+  return true;
+}
+
+function objEquiv(a, b, opts) {
+  var i, key;
+  if (isUndefinedOrNull(a) || isUndefinedOrNull(b))
+    return false;
+  // an identical 'prototype' property.
+  if (a.prototype !== b.prototype) return false;
+  //~~~I've managed to break Object.keys through screwy arguments passing.
+  //   Converting to array solves the problem.
+  if (is_arguments(a)) {
+    if (!is_arguments(b)) {
+      return false;
+    }
+    a = pSlice.call(a);
+    b = pSlice.call(b);
+    return deepEqual(a, b, opts);
+  }
+  if (isBuffer(a)) {
+    if (!isBuffer(b)) {
+      return false;
+    }
+    if (a.length !== b.length) return false;
+    for (i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+  try {
+    var ka = keys(a),
+        kb = keys(b);
+  } catch (e) {//happens when one is a string literal and the other isn't
+    return false;
+  }
+  // having the same number of owned properties (keys incorporates
+  // hasOwnProperty)
+  if (ka.length != kb.length)
+    return false;
+  //the same set of keys (although not necessarily the same order),
+  ka.sort();
+  kb.sort();
+  //~~~cheap key test
+  for (i = ka.length - 1; i >= 0; i--) {
+    if (ka[i] != kb[i])
+      return false;
+  }
+  //equivalent values for every corresponding key, and
+  //~~~possibly expensive deep test
+  for (i = ka.length - 1; i >= 0; i--) {
+    key = ka[i];
+    if (!deepEqual(a[key], b[key], opts)) return false;
+  }
+  return typeof a === typeof b;
+}
+});
 
 function getPropByString (obj, propString) {
   if (!propString) {
@@ -58,7 +423,7 @@ var objectEquals = (a, b) => {
         if (
           (valueA instanceof Array) &&
           (valueB instanceof Array) &&
-          !deepEqual(valueA, valueB)
+          !deepEqual_1(valueA, valueB)
         ) {
           return false
         }
@@ -80,8 +445,6 @@ var option = {
   Some: (value) => ({ value, hasValue: true }),
   None: {}
 };
-
-const deepEqual$1 = require('deep-equal');
 
 var match = (match, subjectToMatch) => {
   const hasMatchValue = match.args[0].length >= 2;
@@ -128,7 +491,7 @@ var match = (match, subjectToMatch) => {
     subjectToMatch instanceof Array &&
     matchValue instanceof Array
   ) {
-    if (deepEqual$1(subjectToMatch, matchValue)) {
+    if (deepEqual_1(subjectToMatch, matchValue)) {
       return option.Some(subjectToMatch)
     }
   }
@@ -148,8 +511,6 @@ var match = (match, subjectToMatch) => {
   return option.None
 };
 
-const deepEqual$2 = require('deep-equal');
-
 var matchArray = (currentMatch, subjectToMatch) => {
   const matchArgs = currentMatch.args.map(
     (x, index) =>
@@ -158,14 +519,14 @@ var matchArray = (currentMatch, subjectToMatch) => {
 
   if (subjectToMatch.length < matchArgs.length) {
     const matchOnSubArg = (arg, toMatch) => 'value' in arg
-      ? deepEqual$2(arg.value, toMatch)
+      ? deepEqual_1(arg.value, toMatch)
       : true;
 
     const matchAllSubArgs = matchArgs
       .slice(0, matchArgs.length - 1)
       .every((arg, index) => matchOnSubArg(arg, subjectToMatch[index]));
 
-    if (matchAllSubArgs && deepEqual$2(matchArgs[matchArgs.length - 1].value, [])) {
+    if (matchAllSubArgs && deepEqual_1(matchArgs[matchArgs.length - 1].value, [])) {
       return option.Some(subjectToMatch[0])
     }
 
@@ -229,32 +590,159 @@ const containsAll = (xs, ys) =>
 const hasDestructuredObjectArguments = xs =>
   xs.some(x => /({|})/.test(x) && !/function/.test(x));
 
-const flatten = require('flat');
+/*!
+ * Determine if an object is a Buffer
+ *
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
+ */
+
+// The _isBuffer check is for Safari 5-7 support, because it's missing
+// Object.prototype.constructor. Remove this eventually
+var isBuffer_1 = function (obj) {
+  return obj != null && (isBuffer(obj) || isSlowBuffer(obj) || !!obj._isBuffer)
+};
+
+function isBuffer (obj) {
+  return !!obj.constructor && typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
+}
+
+// For Node v0.10 support. Remove this eventually.
+function isSlowBuffer (obj) {
+  return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
+}
+
+var flat_1 = createCommonjsModule(function (module) {
+var flat = module.exports = flatten;
+flatten.flatten = flatten;
+flatten.unflatten = unflatten;
+
+function flatten(target, opts) {
+  opts = opts || {};
+
+  var delimiter = opts.delimiter || '.';
+  var maxDepth = opts.maxDepth;
+  var output = {};
+
+  function step(object, prev, currentDepth) {
+    currentDepth = currentDepth ? currentDepth : 1;
+    Object.keys(object).forEach(function(key) {
+      var value = object[key];
+      var isarray = opts.safe && Array.isArray(value);
+      var type = Object.prototype.toString.call(value);
+      var isbuffer = isBuffer_1(value);
+      var isobject = (
+        type === "[object Object]" ||
+        type === "[object Array]"
+      );
+
+      var newKey = prev
+        ? prev + delimiter + key
+        : key;
+
+      if (!isarray && !isbuffer && isobject && Object.keys(value).length &&
+        (!opts.maxDepth || currentDepth < maxDepth)) {
+        return step(value, newKey, currentDepth + 1)
+      }
+
+      output[newKey] = value;
+    });
+  }
+
+  step(target);
+
+  return output
+}
+
+function unflatten(target, opts) {
+  opts = opts || {};
+
+  var delimiter = opts.delimiter || '.';
+  var overwrite = opts.overwrite || false;
+  var result = {};
+
+  var isbuffer = isBuffer_1(target);
+  if (isbuffer || Object.prototype.toString.call(target) !== '[object Object]') {
+    return target
+  }
+
+  // safely ensure that the key is
+  // an integer.
+  function getkey(key) {
+    var parsedKey = Number(key);
+
+    return (
+      isNaN(parsedKey) ||
+      key.indexOf('.') !== -1
+    ) ? key
+      : parsedKey
+  }
+
+  Object.keys(target).forEach(function(key) {
+    var split = key.split(delimiter);
+    var key1 = getkey(split.shift());
+    var key2 = getkey(split[0]);
+    var recipient = result;
+
+    while (key2 !== undefined) {
+      var type = Object.prototype.toString.call(recipient[key1]);
+      var isobject = (
+        type === "[object Object]" ||
+        type === "[object Array]"
+      );
+
+      // do not write over falsey, non-undefined values if overwrite is false
+      if (!overwrite && !isobject && typeof recipient[key1] !== 'undefined') {
+        return
+      }
+
+      if ((overwrite && !isobject) || (!overwrite && recipient[key1] == null)) {
+        recipient[key1] = (
+          typeof key2 === 'number' &&
+          !opts.object ? [] : {}
+        );
+      }
+
+      recipient = recipient[key1];
+      if (split.length > 0) {
+        key1 = getkey(split.shift());
+        key2 = getkey(split[0]);
+      }
+    }
+
+    // unflatten again for 'messy objects'
+    recipient[key1] = unflatten(target[key], opts);
+  });
+
+  return result
+}
+});
 
 // This is just an approach for deriving an actual js object
 // from the punned syntax of object destructuring in the
 // function argument reflection, that object can then
 // be used to check the keys of the subjectToMatch
-const buildSpecFromReflectedArgs = str => [...str].reduce((res, curr, i) => {
-  switch (true) {
-    // add a dummy value when a key without a value is found
-    case /(,|})/.test(curr) && isChar(str.charAt(i - 1)):
-      return res.concat('":1').concat(curr)
+const buildSpecFromReflectedArgs = str =>
+  [...str].reduce((res, curr, i) => {
+    switch (true) {
+      // add a dummy value when a key without a value is found
+      case /(,|})/.test(curr) && isChar(str.charAt(i - 1)):
+        return res.concat('":1').concat(curr)
 
       // add a opening quote to keynames that are missing them
-    case isChar(curr) && !isChar(str.charAt(i - 1)):
+      case isChar(curr) && !isChar(str.charAt(i - 1)):
       // add a closing quote to keynames that are missing them
       /* falls through */
-    case curr === ':' && str.charAt(i - 1) !== '"':
-      return res.concat('"').concat(curr)
+      case curr === ':' && str.charAt(i - 1) !== '"':
+        return res.concat('"').concat(curr)
 
-    default:
-      return res.concat(curr)
-  }
-}, '');
+      default:
+        return res.concat(curr)
+    }
+  }, '');
 
 // derive a flattened list of keys|paths from an object
-const getFlattenedKeys = compose(Object.keys, flatten);
+const getFlattenedKeys = compose(Object.keys, flat_1);
 
 const getFlattenedKeysFromArgs = compose(
   getFlattenedKeys,

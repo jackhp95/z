@@ -1,5 +1,4 @@
-const deepEqual = require('deep-equal')
-
+import deepEqual from 'deep-equal'
 import objectEquals from './objectEquals'
 import option from './option'
 
